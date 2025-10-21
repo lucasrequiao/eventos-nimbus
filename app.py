@@ -1,0 +1,236 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+
+# ============== Configurações de Página =====================
+st.set_page_config(
+    page_title="Painel de Eventos - Nimbus",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    page_icon="📊",
+)
+
+DEFAULT_HEIGHT = 700
+
+# ============== Funções Utilitárias =========================
+def normalize_columns(df):
+    df.columns = [c.lower().strip().replace(' ', '_').replace('-', '_') for c in df.columns]
+    return df
+
+@st.cache_data(show_spinner=False)
+def load_data():
+    df = pd.read_excel("df_nimbus.xlsx")
+    df = normalize_columns(df)
+    return df
+
+# ============== Carregar Dados ===============================
+df = load_data()
+df["inicio"] = pd.to_datetime(df["inicio"], errors="coerce")
+df["fim"] = pd.to_datetime(df["fim"], errors="coerce")
+df["publico_previsto"] = pd.to_numeric(df["publico_previsto"], errors="coerce")
+df["duracao_h"] = round((df["fim"] - df["inicio"]).dt.total_seconds() / 3600, 2)
+df["mes"] = df["inicio"].dt.to_period("M").astype(str)
+df["hora_inicio"] = df["inicio"].dt.hour
+df["hora_fim"] = df["fim"].dt.hour
+
+# Guardar cópia do DataFrame completo (antes dos filtros)
+df_completo = df.copy()
+
+# ============== Sidebar =====================================
+st.sidebar.title("⚙️ Filtros")
+st.sidebar.caption("Use os filtros para refinar todas as análises do painel.")
+
+data_inicio = df["inicio"].min()
+data_fim = df["inicio"].max()
+periodo = st.sidebar.date_input("Período", value=(data_inicio, data_fim))
+
+if "cidade" in df.columns:
+    cidades = sorted(df["cidade"].dropna().unique().tolist())
+    cidades_selecionadas = st.sidebar.multiselect("Cidades", cidades, default=cidades)
+    df = df[df["cidade"].isin(cidades_selecionadas)]
+
+if "cpr" in df.columns:
+    cprs = df["cpr"].unique()
+    cprs_selecionadas = st.sidebar.multiselect("CPRs", cprs, default=cprs)
+    df = df[df["cpr"].isin(cprs_selecionadas)]
+
+# Filtrar por período (converter date para datetime)
+if len(periodo) == 2:
+    df = df[df["inicio"].between(pd.to_datetime(periodo[0]), pd.to_datetime(periodo[1]))]
+
+if "natureza" in df.columns:
+    naturezas = sorted(df["natureza"].dropna().unique().tolist())
+    naturezas_selecionadas = st.sidebar.multiselect("Naturezas", naturezas, default=naturezas)
+    df = df[df["natureza"].isin(naturezas_selecionadas)]
+
+if "os_gerada" in df.columns:
+    os_geradas = df["os_gerada"].unique()
+    os_geradas_selecionadas = st.sidebar.multiselect("OS Geradas", os_geradas, default=os_geradas)
+    df = df[df["os_gerada"].isin(os_geradas_selecionadas)]
+
+st.title("📊 Painel de Eventos — Nimbus")
+
+# Mostrar totais gerais (antes dos filtros)
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.info(f"**Total na planilha:** {len(df_completo):,.0f} eventos".replace(',', '.'))
+with col2:
+    st.info(f"**Após filtros:** {len(df):,.0f} eventos".replace(',', '.'))
+with col3:
+    if len(df_completo) > 0:
+        pct = (len(df) / len(df_completo)) * 100
+        st.info(f"**Exibindo:** {pct:.1f}% do total")
+
+st.markdown("---")
+
+# ============== Seções em Abas ===============================
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "1) Visão Geral",
+    "2) Distribuição Geográfica",
+    "3) Natureza dos Eventos",
+    "4) Análise Temporal",
+    "5) Eficiência Operacional"
+])
+
+# ============================================================
+# 1. VISÃO GERAL
+# ============================================================
+with tab1:
+    st.subheader("Indicadores Gerais (Dados Filtrados)")
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+        st.metric("Eventos (filtrados)", f"{len(df):,.0f}".replace(',', '.'))
+    with c2:
+        st.metric("Público Total", f"{df['publico_previsto'].sum():,.0f}".replace(',', '.'))
+    with c3:
+        st.metric("Público Médio", f"{df['publico_previsto'].mean():,.0f}".replace(',', '.'))
+    with c4:
+        st.metric("Eventos com OS gerada (SIM)", df[df["os_gerada"] == "SIM"].shape[0])
+    
+    c5, c6 = st.columns(2)
+
+    with c5:
+        if 'mes' in df.columns:
+            por_mes = df.groupby("mes").size().reset_index(name="eventos")
+            fig = px.area(por_mes, x="mes", y="eventos", title="Eventos por mês", height=DEFAULT_HEIGHT)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Não foi possível calcular a linha do tempo (coluna de data ausente).")
+
+    with c6:
+        if 'natureza' in df.columns:
+            fig = px.pie(df, names="natureza", title="Distribuição por natureza", height=DEFAULT_HEIGHT)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Não foi possível calcular a duração (datas/horários de início e fim ausentes).")
+
+# ============================================================
+# 2. DISTRIBUIÇÃO GEOGRÁFICA
+# ============================================================
+with tab2:
+    st.subheader("Distribuição Geográfica & CPRs")
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        if "cidade" in df.columns:
+            por_cidade = df.groupby("cidade").size().reset_index(name="eventos")
+            fig = px.bar(por_cidade, x="eventos", y="cidade", orientation="h", title="Eventos por cidade", height=DEFAULT_HEIGHT)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Não foi possível calcular a distribuição geográfica (coluna de cidade ausente).")
+
+    with c2:
+        if "cpr" in df.columns:
+            por_cpr = df.groupby("cpr").size().reset_index(name="eventos")
+            fig = px.bar(por_cpr, x="cpr", y="eventos", title="Eventos por CPR", height=DEFAULT_HEIGHT)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Não foi possível calcular a distribuição geográfica (coluna de CPR ausente).")
+
+# ============================================================
+# 3. NATUREZA DOS EVENTOS
+# ============================================================
+with tab3:
+    st.subheader("Natureza dos Eventos")
+
+    c1, c2 = st.columns(2)
+
+    if "natureza" in df.columns:
+        with c1: 
+            por_natureza = df["natureza"].dropna().value_counts().reset_index(name="qtd")
+            por_natureza.columns = ['natureza', 'qtd']
+            fig = px.bar(por_natureza.sort_values('qtd'), x='qtd', y='natureza', orientation='h', 
+                            title="Quantidade por natureza", height=DEFAULT_HEIGHT)
+            st.plotly_chart(fig, use_container_width=True)
+        with c2:
+            if "publico_previsto" in df.columns:
+                bp_df = df.dropna(subset=["natureza", "publico_previsto"])
+                if not bp_df.empty:
+                    fig = px.box(bp_df, x="natureza", y="publico_previsto",
+                                 title="Distribuição de público previsto por natureza", height=DEFAULT_HEIGHT)
+                    fig.update_layout(xaxis_title="Natureza", yaxis_title="Público previsto")
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("Sem dados suficientes para o boxplot.")
+            else:
+                st.info("Coluna de público previsto não encontrada para o boxplot.")
+    else:
+        st.info("Coluna de natureza não encontrada.")
+
+# ============================================================
+# 4. ANÁLISE TEMPORAL
+# ============================================================
+with tab4:
+    st.subheader("Distribuição temporal")
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        if 'inicio' in df.columns and 'hora_inicio' in df.columns:
+            # Obtem dia da semana em português
+            pt_days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+            dow = pd.to_datetime(df['inicio']).dt.dayofweek
+            hour = df['hora_inicio']
+            heat = pd.crosstab(dow, hour).reindex(index=range(7), fill_value=0)
+            heat.index = pt_days
+            heat = heat.reindex(columns=range(0,24), fill_value=0)
+            fig = px.imshow(heat, aspect='auto', title="Heatmap de eventos (Hora × Dia da semana)", height=DEFAULT_HEIGHT)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Dados de hora não disponíveis.")
+
+    with c2:
+        if 'mes' in df.columns:
+            por_mes = df.groupby("mes").size().reset_index(name="eventos")
+            fig = px.area(por_mes, x='mes', y='eventos', title="Tendência mensal de eventos", height=DEFAULT_HEIGHT)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Não foi possível calcular a tendência mensal (coluna de data ausente).")
+
+# ============================================================
+# 5. EFICIÊNCIA OPERACIONAL
+# ============================================================
+with tab5:
+    st.subheader("Indicadores Operacionais")
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        if "os_gerada" in df.columns:
+            pct_os = (df["os_gerada"].eq("SIM").mean() * 100) if len(df) else 0
+            st.metric("Percentual com OS gerada", f"{pct_os:.1f}%")
+        else:
+            st.info("Coluna de OS gerada não encontrada.")
+
+    with c2:
+        if "cpr" in df.columns:
+            por_cpr_os = (df.groupby(["cpr", "os_gerada"])
+                         .size()
+                         .reset_index(name="eventos")
+                         .sort_values("eventos", ascending=False))
+            fig = px.bar(por_cpr_os, x="cpr", y="eventos", color="os_gerada", title="Eventos por CPR e OS gerada", height=DEFAULT_HEIGHT)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Coluna de CPR não encontrada.")
