@@ -44,6 +44,10 @@ data_inicio = df["inicio"].min()
 data_fim = df["inicio"].max()
 periodo = st.sidebar.date_input("Período", value=(data_inicio, data_fim))
 
+# Filtrar por período (converter date para datetime)
+if len(periodo) == 2:
+    df = df[df["inicio"].between(pd.to_datetime(periodo[0]), pd.to_datetime(periodo[1]))]
+
 if "cidade" in df.columns:
     cidades = sorted(df["cidade"].dropna().unique().tolist())
     cidades_selecionadas = st.sidebar.multiselect("Cidades", cidades, default=cidades)
@@ -54,9 +58,10 @@ if "cpr" in df.columns:
     cprs_selecionadas = st.sidebar.multiselect("CPRs", cprs, default=cprs)
     df = df[df["cpr"].isin(cprs_selecionadas)]
 
-# Filtrar por período (converter date para datetime)
-if len(periodo) == 2:
-    df = df[df["inicio"].between(pd.to_datetime(periodo[0]), pd.to_datetime(periodo[1]))]
+if "upm" in df.columns:
+    upms = sorted(df["upm"].dropna().unique().tolist())
+    upms_selecionadas = st.sidebar.multiselect("UPMs", upms, default=upms)
+    df = df[df["upm"].isin(upms_selecionadas)]
 
 if "natureza" in df.columns:
     naturezas = sorted(df["natureza"].dropna().unique().tolist())
