@@ -10,7 +10,7 @@ st.set_page_config(
     page_icon="📊",
 )
 
-DEFAULT_HEIGHT = 700
+DEFAULT_HEIGHT = 600
 
 DEFAULT_LAYOUT = dict(
     paper_bgcolor="white",
