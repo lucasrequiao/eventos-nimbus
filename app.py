@@ -12,6 +12,103 @@ st.set_page_config(
 
 DEFAULT_HEIGHT = 700
 
+DEFAULT_LAYOUT = dict(
+    paper_bgcolor="white",
+    plot_bgcolor="white",
+    font=dict(color="#003366"),
+    title_x=0.4
+)
+
+
+st.markdown("""
+<style>
+/* ============================== */
+/* 🎨 Tema personalizado PMDF      */
+/* ============================== */
+
+/* Fundo geral e texto */
+body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+    background-color: #F8FAFC !important;
+    color: #1E293B !important;
+}
+
+/* Container das abas */
+div[data-baseweb="tab-list"] {
+    justify-content: center !important;      /* centraliza as abas */
+    gap: 0.8rem !important;                  /* espaçamento entre abas */
+    margin-top: 0.5rem !important;
+}
+
+/* Aba ativa */
+div[data-baseweb="tab-list"] button[aria-selected="true"] {
+    background-color: #003366 !important;    /* azul PMDF */
+    color: #FFFFFF !important;
+    padding: 5px 10px !important;
+    border-radius: 5px 5px 0 0 !important;
+    font-weight: 700 !important;
+    box-shadow: 0px -3px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Abas inativas */
+div[data-baseweb="tab-list"] button[aria-selected="false"] {
+    background-color: #E2E8F0 !important;
+    color: #003366 !important;
+    padding: 5px 10px !important;
+    border-radius: 5px 5px 0 0 !important;
+    font-weight: 600 !important;
+    border: 1px solid #CBD5E1 !important;
+    transition: all 0.2s ease-in-out;
+}
+
+/* Hover nas abas inativas */
+div[data-baseweb="tab-list"] button[aria-selected="false"]:hover {
+    background-color: #C8A100 !important;  /* dourado PMDF */
+    color: #FFFFFF !important;
+    transform: scale(1.03);
+}
+
+/* Efeito de foco na aba ativa */
+div[data-baseweb="tab-list"] button[aria-selected="true"]:hover {
+    background-color: #00224D !important;
+}
+
+/* ============================== */
+/* Layout e estética geral        */
+/* ============================== */
+
+/* Centralizar os títulos h1/h2 */
+h1, h2 {
+    text-align: center !important;
+    color: #003366 !important;
+    font-weight: 700 !important;
+}
+
+/* Links e botões */
+a, .stButton>button {
+    background-color: #003366 !important;
+    color: #FFFFFF !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+}
+a:hover, .stButton>button:hover {
+    background-color: #C8A100 !important;
+    color: #003366 !important;
+}
+
+/* Linhas divisórias */
+hr {
+    border: 1px solid #003366 !important;
+}
+
+/* Cards e métricas */
+[data-testid="stMetricValue"] {
+    color: #003366 !important;
+    font-weight: 700 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 # ============== Funções Utilitárias =========================
 def normalize_columns(df):
     df.columns = [c.lower().strip().replace(' ', '_').replace('-', '_') for c in df.columns]
@@ -92,11 +189,11 @@ st.markdown("---")
 
 # ============== Seções em Abas ===============================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "1) Visão Geral",
-    "2) Distribuição Geográfica",
-    "3) Natureza dos Eventos",
-    "4) Análise Temporal",
-    "5) Eficiência Operacional"
+    "1) 🗂️ Visão Geral",
+    "2) 🌍 Distribuição Geográfica",
+    "3) 🏷️ Natureza dos Eventos",
+    "4) 📅 Análise Temporal",
+    "5) 🚔 Eficiência Operacional"
 ])
 
 # ============================================================
@@ -124,6 +221,7 @@ with tab1:
             por_mes = df.groupby("mes").size().reset_index(name="eventos")
             fig = px.area(por_mes, x="mes", y="eventos", title="Eventos por mês", height=DEFAULT_HEIGHT,
                         labels={"eventos": "Eventos", "mes": "Mês"})
+            fig.update_layout(**DEFAULT_LAYOUT)            
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Não foi possível calcular a linha do tempo (coluna de data ausente).")
@@ -131,6 +229,7 @@ with tab1:
     with c7:
         if 'natureza' in df.columns:
             fig = px.pie(df, names="natureza", title="Distribuição por natureza", height=DEFAULT_HEIGHT)
+            fig.update_layout(**DEFAULT_LAYOUT)
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Não foi possível calcular a duração (datas/horários de início e fim ausentes).")
@@ -139,7 +238,7 @@ with tab1:
 # 2. DISTRIBUIÇÃO GEOGRÁFICA
 # ============================================================
 with tab2:
-    st.subheader("Distribuição Geográfica & CPRs")
+    st.subheader("Distribuição Geográfica, UPMs e CPRs")
 
     c1, c2 = st.columns(2)
 
@@ -148,6 +247,7 @@ with tab2:
             por_upm = df.groupby("upm").size().reset_index(name="eventos")
             fig = px.bar(por_upm.sort_values("eventos", ascending=True), x="eventos", y="upm", orientation="h", title="Eventos por UPM", 
                         height=DEFAULT_HEIGHT, labels={"eventos": "Eventos", "upm": "UPM"})
+            fig.update_layout(**DEFAULT_LAYOUT)            
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Não foi possível calcular a distribuição geográfica (coluna de cidade ausente).")
@@ -157,6 +257,7 @@ with tab2:
             por_cpr = df.groupby("cpr").size().reset_index(name="eventos")
             fig = px.bar(por_cpr, x="cpr", y="eventos", title="Eventos por CPR", height=DEFAULT_HEIGHT,
                         labels={"eventos": "Eventos", "cpr": "CPR"})
+            fig.update_layout(**DEFAULT_LAYOUT)            
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Não foi possível calcular a distribuição geográfica (coluna de CPR ausente).")
@@ -165,6 +266,7 @@ with tab2:
         por_cidade = df.groupby("cidade").size().reset_index(name="eventos")
         fig = px.bar(por_cidade.sort_values("eventos", ascending=False), x="cidade", y="eventos", title="Eventos por cidade", height=DEFAULT_HEIGHT,
                     labels={"eventos": "Eventos", "cidade": "Cidade"})
+        fig.update_layout(**DEFAULT_LAYOUT)            
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Não foi possível calcular a distribuição geográfica (coluna de cidade ausente).")
@@ -183,6 +285,7 @@ with tab3:
             por_natureza.columns = ['natureza', 'qtd']
             fig = px.bar(por_natureza.sort_values('qtd', ascending=False), x='natureza', y='qtd', title="Quantidade por natureza", height=DEFAULT_HEIGHT,
                         labels={"qtd": "Quantidade", "natureza": "Natureza"})
+            fig.update_layout(**DEFAULT_LAYOUT)
             st.plotly_chart(fig, use_container_width=True)
         with c2:
             if "publico_previsto" in df.columns:
@@ -190,6 +293,7 @@ with tab3:
                 if not bp_df.empty:
                     fig = px.box(bp_df, x="natureza", y="publico_previsto", title="Distribuição de público previsto por natureza", height=DEFAULT_HEIGHT)
                     fig.update_layout(xaxis_title="Natureza", yaxis_title="Público previsto")
+                    fig.update_layout(**DEFAULT_LAYOUT)
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("Sem dados suficientes para o boxplot.")
@@ -216,7 +320,7 @@ with tab4:
             heat.index = pt_days
             heat = heat.reindex(columns=range(0,24), fill_value=0)
             fig = px.imshow(heat, aspect='auto', title="Heatmap de eventos (Hora × Dia da semana)", height=DEFAULT_HEIGHT)
-            fig.update_layout(xaxis_title="Hora de início", yaxis_title="Dia da semana")
+            fig.update_layout(xaxis_title="Hora de início", yaxis_title="Dia da semana", **DEFAULT_LAYOUT)
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Dados de hora não disponíveis.")
@@ -226,6 +330,7 @@ with tab4:
             por_mes = df.groupby("mes").size().reset_index(name="eventos")
             fig = px.area(por_mes, x='mes', y='eventos', title="Tendência mensal de eventos", height=DEFAULT_HEIGHT,
                         labels={"eventos": "Eventos", "mes": "Mês"})
+            fig.update_layout(**DEFAULT_LAYOUT)
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Não foi possível calcular a tendência mensal (coluna de data ausente).")
@@ -236,20 +341,30 @@ with tab4:
 with tab5:
     st.subheader("Indicadores Operacionais")
 
+    if "os_gerada" in df.columns:
+            pct_os = (df["os_gerada"].eq("SIM").mean() * 100) if len(df) else 0
+            st.metric("Percentual com OS gerada", f"{pct_os:.1f}%")
+    else:
+        st.info("Coluna de OS gerada não encontrada.")
+
     c1, c2 = st.columns(2)
 
     with c1:
-        if "os_gerada" in df.columns:
-            pct_os = (df["os_gerada"].eq("SIM").mean() * 100) if len(df) else 0
-            st.metric("Percentual com OS gerada", f"{pct_os:.1f}%")
+        if "upm" in df.columns:
+            por_upm_os = (df.groupby(["upm", "os_gerada"]).size().reset_index(name="eventos").sort_values("eventos", ascending=False))
+            fig = px.bar(por_upm_os, x="upm", y="eventos", color="os_gerada", title="Eventos por UPM e OS gerada", height=DEFAULT_HEIGHT,
+                        labels={"eventos": "Eventos", "upm": "", "os_gerada": "OS gerada"})
+            fig.update_layout(**DEFAULT_LAYOUT)
+            st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("Coluna de OS gerada não encontrada.")
+            st.info("Coluna de UPM não encontrada.")
 
     with c2:
         if "cpr" in df.columns:
             por_cpr_os = (df.groupby(["cpr", "os_gerada"]).size().reset_index(name="eventos").sort_values("eventos", ascending=False))
             fig = px.bar(por_cpr_os, x="cpr", y="eventos", color="os_gerada", title="Eventos por CPR e OS gerada", height=DEFAULT_HEIGHT,
                         labels={"eventos": "Eventos", "cpr": "", "os_gerada": "OS gerada"})
+            fig.update_layout(**DEFAULT_LAYOUT)
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Coluna de CPR não encontrada.")
