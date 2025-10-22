@@ -19,7 +19,7 @@ def normalize_columns(df):
 
 @st.cache_data(show_spinner=False)
 def load_data():
-    df = pd.read_excel("df_nimbus.xlsx")
+    df = pd.read_excel("df_nimbus_att.xlsx")
     df = normalize_columns(df)
     return df
 
@@ -81,6 +81,8 @@ with col3:
         pct = (len(df) / len(df_completo)) * 100
         st.info(f"**Exibindo:** {pct:.1f}% do total")
 
+#st.dataframe(df)
+
 st.markdown("---")
 
 # ============== Seções em Abas ===============================
@@ -97,7 +99,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # ============================================================
 with tab1:
     st.subheader("Indicadores Gerais (Dados Filtrados)")
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
 
     with c1:
         st.metric("Eventos (filtrados)", f"{len(df):,.0f}".replace(',', '.'))
@@ -107,18 +109,21 @@ with tab1:
         st.metric("Público Médio", f"{df['publico_previsto'].mean():,.0f}".replace(',', '.'))
     with c4:
         st.metric("Eventos com OS gerada (SIM)", df[df["os_gerada"] == "SIM"].shape[0])
+    with c5: 
+        st.metric("Público Total (OS gerada)", f"{df[df['os_gerada'] == 'SIM']['publico_previsto'].sum():,.0f}".replace(',', '.'))
     
-    c5, c6 = st.columns(2)
+    c6, c7 = st.columns(2)
 
-    with c5:
+    with c6:
         if 'mes' in df.columns:
             por_mes = df.groupby("mes").size().reset_index(name="eventos")
-            fig = px.area(por_mes, x="mes", y="eventos", title="Eventos por mês", height=DEFAULT_HEIGHT)
+            fig = px.area(por_mes, x="mes", y="eventos", title="Eventos por mês", height=DEFAULT_HEIGHT,
+                        labels={"eventos": "Eventos", "mes": "Mês"})
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Não foi possível calcular a linha do tempo (coluna de data ausente).")
 
-    with c6:
+    with c7:
         if 'natureza' in df.columns:
             fig = px.pie(df, names="natureza", title="Distribuição por natureza", height=DEFAULT_HEIGHT)
             st.plotly_chart(fig, use_container_width=True)
@@ -134,9 +139,10 @@ with tab2:
     c1, c2 = st.columns(2)
 
     with c1:
-        if "cidade" in df.columns:
-            por_cidade = df.groupby("cidade").size().reset_index(name="eventos")
-            fig = px.bar(por_cidade, x="eventos", y="cidade", orientation="h", title="Eventos por cidade", height=DEFAULT_HEIGHT)
+        if "upm" in df.columns:
+            por_upm = df.groupby("upm").size().reset_index(name="eventos")
+            fig = px.bar(por_upm.sort_values("eventos", ascending=True), x="eventos", y="upm", orientation="h", title="Eventos por UPM", 
+                        height=DEFAULT_HEIGHT, labels={"eventos": "Eventos", "upm": "UPM"})
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Não foi possível calcular a distribuição geográfica (coluna de cidade ausente).")
@@ -144,10 +150,19 @@ with tab2:
     with c2:
         if "cpr" in df.columns:
             por_cpr = df.groupby("cpr").size().reset_index(name="eventos")
-            fig = px.bar(por_cpr, x="cpr", y="eventos", title="Eventos por CPR", height=DEFAULT_HEIGHT)
+            fig = px.bar(por_cpr, x="cpr", y="eventos", title="Eventos por CPR", height=DEFAULT_HEIGHT,
+                        labels={"eventos": "Eventos", "cpr": "CPR"})
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Não foi possível calcular a distribuição geográfica (coluna de CPR ausente).")
+
+    if "cidade" in df.columns:
+        por_cidade = df.groupby("cidade").size().reset_index(name="eventos")
+        fig = px.bar(por_cidade.sort_values("eventos", ascending=False), x="cidade", y="eventos", title="Eventos por cidade", height=DEFAULT_HEIGHT,
+                    labels={"eventos": "Eventos", "cidade": "Cidade"})
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Não foi possível calcular a distribuição geográfica (coluna de cidade ausente).")
 
 # ============================================================
 # 3. NATUREZA DOS EVENTOS
@@ -161,15 +176,14 @@ with tab3:
         with c1: 
             por_natureza = df["natureza"].dropna().value_counts().reset_index(name="qtd")
             por_natureza.columns = ['natureza', 'qtd']
-            fig = px.bar(por_natureza.sort_values('qtd'), x='qtd', y='natureza', orientation='h', 
-                            title="Quantidade por natureza", height=DEFAULT_HEIGHT)
+            fig = px.bar(por_natureza.sort_values('qtd', ascending=False), x='natureza', y='qtd', title="Quantidade por natureza", height=DEFAULT_HEIGHT,
+                        labels={"qtd": "Quantidade", "natureza": "Natureza"})
             st.plotly_chart(fig, use_container_width=True)
         with c2:
             if "publico_previsto" in df.columns:
                 bp_df = df.dropna(subset=["natureza", "publico_previsto"])
                 if not bp_df.empty:
-                    fig = px.box(bp_df, x="natureza", y="publico_previsto",
-                                 title="Distribuição de público previsto por natureza", height=DEFAULT_HEIGHT)
+                    fig = px.box(bp_df, x="natureza", y="publico_previsto", title="Distribuição de público previsto por natureza", height=DEFAULT_HEIGHT)
                     fig.update_layout(xaxis_title="Natureza", yaxis_title="Público previsto")
                     st.plotly_chart(fig, use_container_width=True)
                 else:
@@ -191,12 +205,13 @@ with tab4:
         if 'inicio' in df.columns and 'hora_inicio' in df.columns:
             # Obtem dia da semana em português
             pt_days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
-            dow = pd.to_datetime(df['inicio']).dt.dayofweek
-            hour = df['hora_inicio']
-            heat = pd.crosstab(dow, hour).reindex(index=range(7), fill_value=0)
+            dias_semana = pd.to_datetime(df['inicio']).dt.dayofweek
+            hora_inicio = df['hora_inicio']
+            heat = pd.crosstab(dias_semana, hora_inicio).reindex(index=range(7), fill_value=0)
             heat.index = pt_days
             heat = heat.reindex(columns=range(0,24), fill_value=0)
             fig = px.imshow(heat, aspect='auto', title="Heatmap de eventos (Hora × Dia da semana)", height=DEFAULT_HEIGHT)
+            fig.update_layout(xaxis_title="Hora de início", yaxis_title="Dia da semana")
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Dados de hora não disponíveis.")
@@ -204,7 +219,8 @@ with tab4:
     with c2:
         if 'mes' in df.columns:
             por_mes = df.groupby("mes").size().reset_index(name="eventos")
-            fig = px.area(por_mes, x='mes', y='eventos', title="Tendência mensal de eventos", height=DEFAULT_HEIGHT)
+            fig = px.area(por_mes, x='mes', y='eventos', title="Tendência mensal de eventos", height=DEFAULT_HEIGHT,
+                        labels={"eventos": "Eventos", "mes": "Mês"})
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Não foi possível calcular a tendência mensal (coluna de data ausente).")
@@ -226,11 +242,9 @@ with tab5:
 
     with c2:
         if "cpr" in df.columns:
-            por_cpr_os = (df.groupby(["cpr", "os_gerada"])
-                         .size()
-                         .reset_index(name="eventos")
-                         .sort_values("eventos", ascending=False))
-            fig = px.bar(por_cpr_os, x="cpr", y="eventos", color="os_gerada", title="Eventos por CPR e OS gerada", height=DEFAULT_HEIGHT)
+            por_cpr_os = (df.groupby(["cpr", "os_gerada"]).size().reset_index(name="eventos").sort_values("eventos", ascending=False))
+            fig = px.bar(por_cpr_os, x="cpr", y="eventos", color="os_gerada", title="Eventos por CPR e OS gerada", height=DEFAULT_HEIGHT,
+                        labels={"eventos": "Eventos", "cpr": "", "os_gerada": "OS gerada"})
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Coluna de CPR não encontrada.")
