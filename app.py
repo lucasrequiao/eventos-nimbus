@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from pandas import NA
 
 # ============== Configurações de Página =====================
 st.set_page_config(
@@ -13,8 +14,8 @@ st.set_page_config(
 DEFAULT_HEIGHT = 600
 
 DEFAULT_LAYOUT = dict(
-    paper_bgcolor="white",
-    plot_bgcolor="white",
+    paper_bgcolor="#F8FAFC",
+    plot_bgcolor="#F8FAFC",
     font=dict(color="#003366"),
     title_x=0.4
 )
@@ -129,6 +130,23 @@ df["duracao_h"] = round((df["fim"] - df["inicio"]).dt.total_seconds() / 3600, 2)
 df["mes"] = df["inicio"].dt.to_period("M").astype(str)
 df["hora_inicio"] = df["inicio"].dt.hour
 df["hora_fim"] = df["fim"].dt.hour
+df["dia_semana"] = df["inicio"].dt.dayofweek
+df["dia_semana_nome"] = df["dia_semana"].map({
+    0: "Segunda-feira", 
+    1: "Terça-feira", 
+    2: "Quarta-feira", 
+    3: "Quinta-feira", 
+    4: "Sexta-feira", 
+    5: "Sábado", 
+    6: "Domingo"
+})
+
+# Ajuste para remover eventos com duração negativa ou > 72h
+df.loc[(df['duracao_h'] < 0) | (df['duracao_h'] > 72), 'duracao_h'] = NA    
+
+# Ajustar automaticamente quando há erro de ano
+mask_ano_errado = df['fim'].dt.year - df['inicio'].dt.year > 0
+df.loc[mask_ano_errado, 'fim'] = df.loc[mask_ano_errado, 'fim'] - pd.DateOffset(years=1)
 
 # Guardar cópia do DataFrame completo (antes dos filtros)
 df_completo = df.copy()
@@ -169,6 +187,11 @@ if "os_gerada" in df.columns:
     os_geradas = df["os_gerada"].unique()
     os_geradas_selecionadas = st.sidebar.multiselect("OS Geradas", os_geradas, default=os_geradas)
     df = df[df["os_gerada"].isin(os_geradas_selecionadas)]
+
+if "local_caracteristica" in df.columns:
+    local_caracteristicas = sorted(df["local_caracteristica"].dropna().unique().tolist())
+    local_caracteristicas_selecionadas = st.sidebar.multiselect("Local - Característica", local_caracteristicas, default=local_caracteristicas)
+    df = df[df["local_caracteristica"].isin(local_caracteristicas_selecionadas)]    
 
 st.title("📊 Painel de Eventos — Nimbus")
 
@@ -217,18 +240,22 @@ with tab1:
     c6, c7 = st.columns(2)
 
     with c6:
-        if 'mes' in df.columns:
-            por_mes = df.groupby("mes").size().reset_index(name="eventos")
-            fig = px.area(por_mes, x="mes", y="eventos", title="Eventos por mês", height=DEFAULT_HEIGHT,
-                        labels={"eventos": "Eventos", "mes": "Mês"})
-            fig.update_layout(**DEFAULT_LAYOUT)            
+        if 'local_caracteristica' in df.columns:
+            df["local_carac_legendas"] = df["local_caracteristica"].replace({
+                "PUBA": "Público Aberto",
+                "PUBF": "Público Fechado",
+                "PRIA": "Privado Aberto",
+                "PRIF": "Privado Fechado"
+            })
+            fig = px.pie(df, names="local_carac_legendas", title="Distribuição por característica do local", height=DEFAULT_HEIGHT)
+            fig.update_layout(**DEFAULT_LAYOUT)
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("Não foi possível calcular a linha do tempo (coluna de data ausente).")
+            st.info("Não foi possível calcular a duração (datas/horários de início e fim ausentes).")
 
     with c7:
-        if 'natureza' in df.columns:
-            fig = px.pie(df, names="natureza", title="Distribuição por natureza", height=DEFAULT_HEIGHT)
+        if 'cpr' in df.columns:
+            fig = px.pie(df, names="cpr", title="Distribuição por CPRs", height=DEFAULT_HEIGHT)
             fig.update_layout(**DEFAULT_LAYOUT)
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -308,22 +335,20 @@ with tab3:
 with tab4:
     st.subheader("Distribuição temporal")
 
+
+    st.metric("Duração média dos eventos", f"{df['duracao_h'].mean(skipna=True):,.1f} horas")
+
     c1, c2 = st.columns(2)
 
     with c1:
-        if 'inicio' in df.columns and 'hora_inicio' in df.columns:
-            # Obtem dia da semana em português
-            pt_days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
-            dias_semana = pd.to_datetime(df['inicio']).dt.dayofweek
-            hora_inicio = df['hora_inicio']
-            heat = pd.crosstab(dias_semana, hora_inicio).reindex(index=range(7), fill_value=0)
-            heat.index = pt_days
-            heat = heat.reindex(columns=range(0,24), fill_value=0)
-            fig = px.imshow(heat, aspect='auto', title="Heatmap de eventos (Hora × Dia da semana)", height=DEFAULT_HEIGHT)
-            fig.update_layout(xaxis_title="Hora de início", yaxis_title="Dia da semana", **DEFAULT_LAYOUT)
+        if "dia_semana_nome" in df.columns:
+            por_dia_semana = df.groupby("dia_semana_nome").size().reset_index(name="eventos")
+            fig = px.area(por_dia_semana, x="dia_semana_nome", y="eventos", title="Eventos por dia da semana", height=DEFAULT_HEIGHT,
+                        labels={"eventos": "Eventos", "dia_semana_nome": "Dia da semana"})
+            fig.update_layout(**DEFAULT_LAYOUT)
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("Dados de hora não disponíveis.")
+            st.info("Não foi possível calcular a distribuição por dia da semana (coluna de dia da semana ausente).")
 
     with c2:
         if 'mes' in df.columns:
@@ -334,6 +359,16 @@ with tab4:
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Não foi possível calcular a tendência mensal (coluna de data ausente).")
+
+
+    if "natureza" in df.columns:
+        media_por_natureza = df.groupby("natureza")["duracao_h"].mean().reset_index(name="duracao_h").sort_values("duracao_h", ascending=False)
+        fig = px.bar(media_por_natureza, x="natureza", y="duracao_h", title="Duração média dos eventos por natureza", height=DEFAULT_HEIGHT,
+                    labels={"duracao_h": "Duração média", "natureza": "Natureza"})
+        fig.update_layout(**DEFAULT_LAYOUT)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Não foi possível calcular a duração média dos eventos por natureza (coluna de natureza ausente).")
 
 # ============================================================
 # 5. EFICIÊNCIA OPERACIONAL
