@@ -7,7 +7,7 @@ from pandas import NA
 st.set_page_config(
     page_title="Painel de Eventos - Nimbus",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
     page_icon="📊",
 )
 
