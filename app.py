@@ -227,13 +227,13 @@ with tab1:
     c1, c2, c3, c4, c5 = st.columns(5)
 
     with c1:
-        st.metric("Eventos (filtrados)", f"{len(df):,.0f}".replace(',', '.'))
+        st.metric("Eventos", f"{len(df):,.0f}".replace(',', '.'))
     with c2:
         st.metric("Público Total", f"{df['publico_previsto'].sum():,.0f}".replace(',', '.'))
     with c3:
         st.metric("Público Médio", f"{df['publico_previsto'].mean():,.0f}".replace(',', '.'))
     with c4:
-        st.metric("Eventos com OS gerada (SIM)", df[df["os_gerada"] == "SIM"].shape[0])
+        st.metric("Eventos com OS gerada", df[df["os_gerada"] == "SIM"].shape[0])
     with c5: 
         st.metric("Público Total (OS gerada)", f"{df[df['os_gerada'] == 'SIM']['publico_previsto'].sum():,.0f}".replace(',', '.'))
     
@@ -360,15 +360,35 @@ with tab4:
         else:
             st.info("Não foi possível calcular a tendência mensal (coluna de data ausente).")
 
+    c3, c4 = st. columns(2)
 
-    if "natureza" in df.columns:
-        media_por_natureza = df.groupby("natureza")["duracao_h"].mean().reset_index(name="duracao_h").sort_values("duracao_h", ascending=False)
-        fig = px.bar(media_por_natureza, x="natureza", y="duracao_h", title="Duração média dos eventos por natureza", height=DEFAULT_HEIGHT,
-                    labels={"duracao_h": "Duração média", "natureza": "Natureza"})
-        fig.update_layout(**DEFAULT_LAYOUT)
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Não foi possível calcular a duração média dos eventos por natureza (coluna de natureza ausente).")
+    with c3:
+        if "natureza" in df.columns:
+            media_por_natureza = df.groupby("natureza")["duracao_h"].mean().reset_index(name="duracao_h").sort_values("duracao_h", ascending=False)
+            fig = px.bar(media_por_natureza, x="natureza", y="duracao_h", title="Duração média dos eventos por natureza", height=DEFAULT_HEIGHT,
+                        labels={"duracao_h": "Duração média", "natureza": "Natureza"})
+            fig.update_layout(**DEFAULT_LAYOUT)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Não foi possível calcular a duração média dos eventos por natureza (coluna de natureza ausente).")
+
+    with c4:
+        if "dia_semana_nome" in df.columns and "hora_inicio" in df.columns:
+            heat = pd.crosstab(df["dia_semana_nome"], df["hora_inicio"])
+            fig = px.imshow(
+                heat,
+                labels=dict(x="Hora de início", y="Dia da semana", color="Qtd Eventos"),
+                x=heat.columns,
+                y=heat.index,
+                color_continuous_scale="Blues",
+                aspect="auto",
+                title="Heatmap de Eventos: Hora X Dia da Semana",
+                height=DEFAULT_HEIGHT
+            )
+            fig.update_layout(**DEFAULT_LAYOUT)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Não foi possível gerar o heatmap hora x dia da semana (colunas ausentes).")
 
 # ============================================================
 # 5. EFICIÊNCIA OPERACIONAL
